@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AlagaSorocaba — Mapa ao Vivo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#03080f;
+  --surface:#07111f;
+  --surface2:#0c1a2e;
+  --surface3:#112038;
+  --border:#1a2d45;
+  --border2:#213550;
+  --text:#e8f0f8;
+  --text-sec:#7a9ab8;
+  --text-muted:#3d5872;
+  --accent:#2563eb;
+  --accent-light:#3b82f6;
+  --accent-glow:rgba(37,99,235,0.3);
+  --rain:#60a5fa;
+  --critical:#ef4444;
+  --critical-bg:rgba(239,68,68,0.12);
+  --critical-border:rgba(239,68,68,0.35);
+  --moderate:#f59e0b;
+  --moderate-bg:rgba(245,158,11,0.12);
+  --moderate-border:rgba(245,158,11,0.35);
+  --leve:#3b82f6;
+  --leve-bg:rgba(59,130,246,0.12);
+  --leve-border:rgba(59,130,246,0.35);
+  --resolved:#10b981;
+  --shadow:0 4px 24px rgba(0,0,0,0.5);
+  --shadow-sm:0 2px 12px rgba(0,0,0,0.3);
+}
+
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* RAIN ANIMATION BG */
+.rain-bg{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;opacity:0.03}
+.rain-bg::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(96,165,250,0.5) 40px,rgba(96,165,250,0.5) 41px);animation:rain-fall 1.2s linear infinite}
+@keyframes rain-fall{0%{transform:translateY(-100%)}100%{transform:translateY(100%)}}
+
+/* HEADER */
+header{position:sticky;top:0;z-index:1000;background:rgba(3,8,15,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 20px;height:58px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 0 16px var(--accent-glow)}
+.logo-name{font-size:16px;font-weight:800;letter-spacing:-0.3px;color:var(--text)}
+.logo-sub{font-size:9px;color:var(--text-muted);font-weight:600;letter-spacing:1.2px;margin-top:1px}
+.live-pill{display:flex;align-items:center;gap:6px;background:var(--critical-bg);border:1px solid var(--critical-border);border-radius:99px;padding:5px 12px;font-size:11px;font-weight:800;color:#fca5a5;letter-spacing:0.5px}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--critical);animation:live-pulse 1.4s ease-in-out infinite}
+@keyframes live-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.85)}}
+.header-right{display:flex;gap:8px;align-items:center}
+.btn-icon{background:var(--surface2);border:1px solid var(--border);border-radius:9px;width:36px;height:36px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all 0.15s;color:var(--text-sec)}
+.btn-icon:hover{background:var(--surface3);border-color:var(--border2)}
+.btn-report{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-weight:800;font-size:12.5px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;box-shadow:0 0 20px var(--accent-glow);transition:all 0.15s}
+.btn-report:hover{background:#1d4ed8;transform:translateY(-1px)}
+
+/* TOAST */
+#toast{display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:#fff;padding:12px 24px;border-radius:12px;font-weight:700;font-size:13px;z-index:4000;box-shadow:0 8px 32px rgba(0,0,0,0.4);max-width:90vw;text-align:center}
+
+/* STATS BAR */
+.stats-bar{position:relative;z-index:10;display:flex;gap:10px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+.stats-bar::-webkit-scrollbar{display:none}
+.stat-pill{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:7px 14px;white-space:nowrap;flex-shrink:0}
+.stat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.stat-label{font-size:11.5px;color:var(--text-sec);font-weight:600}
+.stat-val{font-size:13px;font-weight:800;color:var(--text)}
+.rain-indicator{display:flex;align-items:center;gap:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);border-radius:99px;padding:7px 14px;margin-left:auto;flex-shrink:0}
+.rain-icon{font-size:13px}
+.rain-val{font-size:12px;font-weight:800;color:var(--rain);font-family:'DM Mono',monospace}
+
+/* MAIN LAYOUT */
+.main{position:relative;z-index:1;display:flex;height:calc(100vh - 58px - 50px)}
+
+/* MAP */
+#map-container{flex:1;position:relative}
+#map{height:100%;width:100%}
+#adding-banner{display:none;position:absolute;top:14px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:9px 20px;border-radius:99px;font-size:12.5px;font-weight:800;z-index:999;box-shadow:0 4px 20px var(--accent-glow);pointer-events:none;white-space:nowrap;animation:banner-pulse 1.5s ease-in-out infinite}
+@keyframes banner-pulse{0%,100%{box-shadow:0 4px 20px var(--accent-glow)}50%{box-shadow:0 4px 32px rgba(37,99,235,0.6)}}
+
+/* SIDEBAR */
+#sidebar{width:310px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.sidebar-tab{flex:1;padding:12px 0;font-size:11.5px;font-weight:800;color:var(--text-muted);background:transparent;border:none;cursor:pointer;font-family:inherit;letter-spacing:0.3px;transition:all 0.15s;border-bottom:2px solid transparent}
+.sidebar-tab.active{color:var(--accent-light);border-bottom-color:var(--accent-light)}
+.sidebar-content{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+
+/* ACTIVE FLOODS LIST */
+.section-header{padding:14px 16px 8px;font-size:10px;font-weight:800;color:var(--text-muted);letter-spacing:1px}
+.flood-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;position:relative}
+.flood-item:hover{background:var(--surface2)}
+.flood-item.selected{background:var(--surface3);border-left:3px solid var(--accent-light)}
+.flood-item-header{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.flood-severity{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;padding:2px 8px;border-radius:99px;letter-spacing:0.3px}
+.flood-severity.critical{background:var(--critical-bg);color:#fca5a5;border:1px solid var(--critical-border)}
+.flood-severity.moderate{background:var(--moderate-bg);color:#fcd34d;border:1px solid var(--moderate-border)}
+.flood-severity.leve{background:var(--leve-bg);color:#93c5fd;border:1px solid var(--leve-border)}
+.flood-severity.resolved{background:rgba(16,185,129,0.12);color:#6ee7b7;border:1px solid rgba(16,185,129,0.3)}
+.flood-item-title{font-size:13px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:4px}
+.flood-item-meta{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:8px}
+.flood-expiry{margin-left:auto;font-size:10px;color:var(--text-muted);font-family:'DM Mono',monospace;background:var(--surface3);padding:2px 7px;border-radius:6px}
+.flood-empty{padding:40px 20px;text-align:center;color:var(--text-muted)}
+.flood-empty-icon{font-size:36px;margin-bottom:12px}
+
+/* DETAIL CARD */
+.detail-card{padding:16px;border-bottom:1px solid var(--border)}
+.detail-title{font-size:15px;font-weight:800;color:var(--text);margin-bottom:8px;line-height:1.4}
+.detail-desc{font-size:12.5px;color:var(--text-sec);line-height:1.6;margin-bottom:12px}
+.detail-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.detail-meta-item{background:var(--surface2);border-radius:8px;padding:8px 10px;border:1px solid var(--border)}
+.detail-meta-lbl{font-size:9.5px;font-weight:700;color:var(--text-muted);letter-spacing:0.5px;margin-bottom:2px}
+.detail-meta-val{font-size:12.5px;font-weight:700;color:var(--text)}
+.detail-img{width:100%;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin-bottom:12px}
+.btn-close-detail{background:var(--surface2);border:1px solid var(--border);color:var(--text-sec);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;width:100%;transition:all 0.15s}
+.btn-close-detail:hover{background:var(--surface3)}
+
+/* HISTORIC TAB */
+.historic-item{padding:14px 16px;border-bottom:1px solid var(--border)}
+.historic-bar-row{display:flex;align-items:center;gap:10px;margin-top:8px}
+.historic-bar-track{flex:1;height:5px;background:var(--surface3);border-radius:99px;overflow:hidden}
+.historic-bar-fill{height:100%;border-radius:99px;background:var(--accent-light)}
+.historic-count{font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;min-width:28px;text-align:right;font-weight:600}
+
+/* MODAL */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:2000;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(6px)}
+#modal-overlay.open{display:flex}
+.modal-box{background:var(--surface);border-radius:20px;padding:28px;width:100%;max-width:440px;border:1px solid var(--border2);box-shadow:0 24px 64px rgba(0,0,0,0.6);max-height:90vh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.modal-title{font-size:17px;font-weight:900;color:var(--text)}
+.btn-close-modal{background:var(--surface2);border:1px solid var(--border);border-radius:9px;width:32px;height:32px;cursor:pointer;font-size:16px;color:var(--text-sec);display:flex;align-items:center;justify-content:center}
+.form-group{margin-bottom:16px}
+.form-label{font-size:11px;font-weight:800;color:var(--text-sec);margin-bottom:7px;display:block;letter-spacing:0.5px}
+.form-inp{width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;outline:none;font-family:inherit;background:var(--surface2);color:var(--text);transition:border-color 0.15s}
+.form-inp:focus{border-color:var(--accent-light)}
+.form-inp::placeholder{color:var(--text-muted)}
+textarea.form-inp{height:80px;resize:vertical}
+.severity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.severity-opt{border:2px solid var(--border);border-radius:12px;padding:12px 8px;text-align:center;cursor:pointer;transition:all 0.15s;background:var(--surface2)}
+.severity-opt:hover{border-color:var(--border2)}
+.severity-opt.selected-critical{border-color:var(--critical);background:var(--critical-bg)}
+.severity-opt.selected-moderate{border-color:var(--moderate);background:var(--moderate-bg)}
+.severity-opt.selected-leve{border-color:var(--leve);background:var(--leve-bg)}
+.severity-opt-icon{font-size:22px;display:block;margin-bottom:5px}
+.severity-opt-lbl{font-size:11px;font-weight:800;color:var(--text-sec)}
+.loc-pick-btn{width:100%;background:rgba(37,99,235,0.1);border:2px dashed rgba(59,130,246,0.5);border-radius:11px;padding:15px;font-size:13.5px;font-weight:800;color:var(--accent-light);font-family:inherit;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.loc-pick-btn:hover{background:rgba(37,99,235,0.18)}
+.loc-pick-btn.hide{display:none}
+.loc-picked-show{display:none;align-items:center;gap:10px;background:rgba(37,99,235,0.1);border:1px solid rgba(59,130,246,0.4);border-radius:11px;padding:11px 14px}
+.loc-picked-show.show{display:flex}
+.photo-drop{border:2px dashed var(--border2);border-radius:11px;padding:20px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:13px;transition:border-color 0.15s}
+.photo-drop:hover{border-color:var(--accent-light)}
+.photo-preview-wrap{display:none;position:relative}
+.photo-preview-wrap.show{display:block}
+.photo-preview-wrap img{width:100%;height:140px;object-fit:cover;border-radius:10px;border:1px solid var(--border)}
+.btn-rm-photo{position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.65);color:#fff;border:none;border-radius:99px;width:26px;height:26px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.btn-submit{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit;width:100%;margin-top:4px;box-shadow:0 0 20px var(--accent-glow);transition:all 0.15s}
+.btn-submit:hover:not(:disabled){background:#1d4ed8;transform:translateY(-1px)}
+.btn-submit:disabled{background:var(--surface3);color:var(--text-muted);cursor:not-allowed;box-shadow:none}
+
+/* AUTH */
+#auth-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+.auth-box{background:var(--surface);border:1px solid var(--border2);border-radius:24px;padding:36px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,0.6)}
+.auth-logo{text-align:center;margin-bottom:28px}
+.auth-logo-icon{width:64px;height:64px;background:var(--accent);border-radius:18px;display:inline-flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:14px;box-shadow:0 0 32px var(--accent-glow)}
+.auth-title{font-size:24px;font-weight:900;color:var(--text);letter-spacing:-0.5px}
+.auth-sub{font-size:12px;color:var(--text-muted);margin-top:4px;font-weight:600;letter-spacing:0.5px}
+.auth-demo-note{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:var(--rain);font-weight:600;text-align:center}
+.auth-tabs{display:flex;gap:4px;background:var(--surface2);border-radius:11px;padding:3px;border:1px solid var(--border);margin-bottom:16px}
+.auth-tab{flex:1;padding:8px;border:none;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;background:transparent;color:var(--text-muted);transition:all 0.15s}
+.auth-tab.active{background:var(--accent);color:#fff}
+.auth-form{display:flex;flex-direction:column;gap:13px}
+
+/* LEAFLET CUSTOM */
+.leaflet-container{background:#061220!important}
+.flood-marker{border-radius:50%;border:3px solid;animation:flood-ping 2s ease-in-out infinite;cursor:pointer}
+@keyframes flood-ping{0%,100%{transform:scale(1);opacity:0.9}50%{transform:scale(1.2);opacity:0.65}}
+</style>
+</head>
+<body>
+
+<div class="rain-bg"></div>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">🌧️</div>
+      <div class="auth-title">AlagaSorocaba</div>
+      <div class="auth-sub">MAPA COLABORATIVO DE ALAGAMENTOS</div>
+    </div>
+    <div class="auth-demo-note">🧪 Versão Demo — dados em memória</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Entrar</button>
+      <button class="auth-tab" onclick="switchAuthTab('register')">Criar conta</button>
+    </div>
+    <div class="auth-form">
+      <div>
+        <label class="form-label">E-MAIL</label>
+        <input class="form-inp" type="email" id="auth-email" placeholder="seu@email.com" value="demo@teste.com"/>
+      </div>
+      <div>
+        <label class="form-label">SENHA</label>
+        <input class="form-inp" type="password" id="auth-password" placeholder="••••••••" value="123456"/>
+      </div>
+      <div id="auth-name-wrap" style="display:none">
+        <label class="form-label">SEU NOME</label>
+        <input class="form-inp" type="text" id="auth-name" placeholder="João Silva"/>
+      </div>
+      <button class="btn-submit" onclick="doAuth()">Entrar</button>
+      <div style="font-size:11px;color:var(--text-muted);text-align:center">Use <strong style="color:var(--text-sec)">demo@teste.com</strong> / <strong style="color:var(--text-sec)">123456</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🌧️</div>
+      <div>
+        <div class="logo-name">AlagaSorocaba</div>
+        <div class="logo-sub">SOROCABA · SP</div>
+      </div>
+    </div>
+    <div class="live-pill"><div class="live-dot"></div>AO VIVO</div>
+    <div class="header-right">
+      <button class="btn-icon" id="theme-btn" onclick="toggleTheme()" title="Tema">☀️</button>
+      <div style="position:relative">
+        <div class="btn-icon" id="user-avatar-btn" onclick="toggleUserMenu()" style="font-weight:800;font-size:14px;cursor:pointer">D</div>
+        <div id="user-menu" style="display:none;position:absolute;right:0;top:44px;background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:8px;min-width:200px;box-shadow:var(--shadow);z-index:999">
+          <div style="padding:10px 14px 10px;border-bottom:1px solid var(--border);margin-bottom:6px">
+            <div style="font-weight:700;font-size:13px;color:var(--text)" id="user-name-display">Demo</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px" id="user-email-display">demo@teste.com</div>
+          </div>
+          <button onclick="logout()" style="width:100%;padding:8px 14px;background:transparent;border:none;border-radius:8px;color:#fca5a5;font-weight:700;font-size:12.5px;cursor:pointer;text-align:left;font-family:inherit">🚪 Sair</button>
+        </div>
+      </div>
+      <button class="btn-report" onclick="openModal()">＋ Reportar Alagamento</button>
+    </div>
+  </header>
+
+  <div class="stats-bar" id="stats-bar"></div>
+
+  <div class="main">
+    <div id="map-container">
+      <div id="map"></div>
+      <div id="adding-banner">🖱️ Clique no mapa para marcar o alagamento</div>
+    </div>
+    <div id="sidebar">
+      <div class="sidebar-tabs">
+        <button class="sidebar-tab active" onclick="switchTab('ativos',this)">🌊 Ativos</button>
+        <button class="sidebar-tab" onclick="switchTab('historico',this)">📊 Histórico</button>
+      </div>
+      <div class="sidebar-content" id="sidebar-ativos">
+        <div id="flood-detail-card" style="display:none"></div>
+        <div class="section-header" id="ativos-label">CARREGANDO...</div>
+        <div id="flood-list"></div>
+      </div>
+      <div class="sidebar-content" id="sidebar-historico" style="display:none">
+        <div class="section-header">PONTOS CRÔNICOS DE SOROCABA</div>
+        <div id="historic-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL REPORTAR -->
+<div id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">🌊 Reportar Alagamento</div>
+      <button class="btn-close-modal" onclick="closeModal()">×</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">LOCALIZAÇÃO *</label>
+      <button class="loc-pick-btn" id="btn-pick-loc" onclick="pickLocation()">🗺️ Clique para marcar no mapa</button>
+      <div class="loc-picked-show" id="loc-picked-show">
+        <span style="font-size:13px;color:var(--accent-light);font-weight:700;flex:1" id="loc-text"></span>
+        <button onclick="pickLocation()" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;color:var(--text-sec);font-family:inherit">Trocar</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">GRAVIDADE *</label>
+      <div class="severity-grid">
+        <div class="severity-opt" id="sev-leve" onclick="selectSeverity('leve')">
+          <span class="severity-opt-icon">💧</span>
+          <span class="severity-opt-lbl" style="color:#93c5fd">Leve</span>
+        </div>
+        <div class="severity-opt" id="sev-moderate" onclick="selectSeverity('moderate')">
+          <span class="severity-opt-icon">🌊</span>
+          <span class="severity-opt-lbl" style="color:#fcd34d">Moderado</span>
+        </div>
+        <div class="severity-opt" id="sev-critical" onclick="selectSeverity('critical')">
+          <span class="severity-opt-icon">🚨</span>
+          <span class="severity-opt-lbl" style="color:#fca5a5">Crítico</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">LOCALIDADE / BAIRRO *</label>
+      <input class="form-inp" type="text" id="f-bairro" placeholder="Ex: Centro, Éden, Wanel Ville..." oninput="validateForm()"/>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">DESCRIÇÃO</label>
+      <textarea class="form-inp" id="f-desc" placeholder="Descreva o alagamento: altura da água, se há carros parados, se impede passagem..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">FOTO (opcional)</label>
+      <input type="file" id="f-photo" accept="image/*" style="display:none" onchange="handlePhoto(this)"/>
+      <div class="photo-preview-wrap" id="photo-preview-wrap">
+        <img id="photo-preview-img" src="" alt="preview"/>
+        <button class="btn-rm-photo" onclick="removePhoto()">×</button>
+      </div>
+      <div class="photo-drop" id="photo-drop" onclick="document.getElementById('f-photo').click()">📷 Clique para adicionar foto</div>
+    </div>
+
+    <button class="btn-submit" id="btn-submit" onclick="submitFlood()" disabled>🌊 Reportar Alagamento</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 horas
+
+const SEV_CONFIG = {
+  critical: { label:'Crítico',  icon:'🚨', color:'#ef4444', cls:'critical' },
+  moderate: { label:'Moderado', icon:'🌊', color:'#f59e0b', cls:'moderate' },
+  leve:     { label:'Leve',     icon:'💧', color:'#3b82f6', cls:'leve'     },
+  resolved: { label:'Resolvido',icon:'✅', color:'#10b981', cls:'resolved' },
+};
+
+const DEMO_FLOODS = [
+  { id:'1', title:'Av. Independência bloqueada', bairro:'Centro', severity:'critical', desc:'Água acima do joelho. Carros parados. Impossível passar.', lat:-23.5015, lng:-47.4526, ts:Date.now()-4*60000,  userName:'João S.', photoBase64:null },
+  { id:'2', title:'Rua 15 de Novembro alagada', bairro:'Vila Hortência', severity:'moderate', desc:'Calçada completamente coberta. Acesso para cadeirantes bloqueado.', lat:-23.499, lng:-47.448, ts:Date.now()-11*60000, userName:'Maria O.', photoBase64:null },
+  { id:'3', title:'Terminal Éden com água', bairro:'Éden', severity:'leve', desc:'Lâmina fina de água na entrada do terminal.', lat:-23.503, lng:-47.455, ts:Date.now()-18*60000, userName:'Carlos M.', photoBase64:null },
+  { id:'4', title:'Cruzamento Av. Itavuvu', bairro:'Jardim Paulistano', severity:'moderate', desc:'Semáforo apagado, cruzamento com água.', lat:-23.507, lng:-47.460, ts:Date.now()-32*60000, userName:'Ana C.', photoBase64:null },
+];
+
+const HISTORIC_DATA = [
+  { bairro:'Centro', local:'Av. Independência (entre R. Boa Morte e R. Souza Menezes)', ocorrencias:47 },
+  { bairro:'Vila Hortência', local:'Rua 15 de Novembro próx. à Praça', ocorrencias:38 },
+  { bairro:'Éden', local:'Terminal Éden — acesso sul', ocorrencias:31 },
+  { bairro:'Jardim Paulistano', local:'Cruzamento Av. Itavuvu com R. Lauro Gomes', ocorrencias:24 },
+  { bairro:'Wanel Ville', local:'Rua Comendador Oeterer próx. ao viaduto', ocorrencias:19 },
+  { bairro:'Alto da Boa Vista', local:'Praça Cel. Fernando Prestes', ocorrencias:14 },
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let floods = [];
+let currentUser = null;
+let selectedFlood = null;
+let addingMode = false;
+let clickedPos = null;
+let selectedSeverity = null;
+let photoBase64 = null;
+let map, tempMarker;
+const markers = [];
+let authTab = 'login';
+let darkMode = true;
+let currentTab = 'ativos';
+let expiryInterval = null;
+
+const USERS = [
+  { email:'demo@teste.com', password:'123456', name:'Usuário Demo' },
+];
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+function switchAuthTab(tab) {
+  authTab = tab;
+  document.querySelectorAll('.auth-tab').forEach((b,i) => b.classList.toggle('active',(i===0)===(tab==='login')));
+  document.getElementById('auth-name-wrap').style.display = tab==='register'?'block':'none';
+  document.querySelector('.auth-form .btn-submit').textContent = tab==='login'?'Entrar':'Criar conta';
+}
+
+function doAuth() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const name     = document.getElementById('auth-name').value.trim();
+  if (!email||!password){ showToast('Preencha e-mail e senha','error'); return; }
+  if (authTab==='register') {
+    if (!name){ showToast('Preencha seu nome','error'); return; }
+    USERS.push({email,password,name});
+    currentUser = {email,name};
+    showToast('✅ Conta criada!');
+  } else {
+    const u = USERS.find(u=>u.email===email&&u.password===password);
+    if (!u){ showToast('❌ E-mail ou senha incorretos','error'); return; }
+    currentUser = {email:u.email, name:u.name};
+  }
+  initApp();
+}
+
+function logout() {
+  currentUser = null;
+  clearInterval(expiryInterval);
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+function initApp() {
+  floods = DEMO_FLOODS.map(f=>({...f}));
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('user-avatar-btn').textContent = currentUser.name.charAt(0).toUpperCase();
+  document.getElementById('user-name-display').textContent = currentUser.name;
+  document.getElementById('user-email-display').textContent = currentUser.email;
+  setTimeout(initMap, 120);
+  render();
+  expiryInterval = setInterval(()=>{ purgeExpired(); }, 60000);
+}
+
+// ─── MAP ──────────────────────────────────────────────────────────────────────
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([-23.5015,-47.4526],14);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+    attribution:'© OpenStreetMap © CARTO', maxZoom:19
+  }).addTo(map);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+
+  map.on('click',(e)=>{
+    if (!addingMode) return;
+    if (tempMarker) tempMarker.remove();
+    tempMarker = L.circleMarker([e.latlng.lat,e.latlng.lng],{
+      radius:10, color:'#fff', fillColor:'#2563eb', fillOpacity:0.9, weight:2
+    }).addTo(map);
+    clickedPos = {lat:e.latlng.lat, lng:e.latlng.lng};
+    addingMode = false;
+    document.getElementById('adding-banner').style.display='none';
+    document.getElementById('modal-overlay').classList.add('open');
+    updateLocPicked();
+  });
+
+  renderMarkers();
+}
+
+function renderMarkers() {
+  markers.forEach(m=>m.remove());
+  markers.length=0;
+  getActiveFloods().forEach(f=>{
+    const cfg = SEV_CONFIG[f.severity]||SEV_CONFIG.leve;
+    const isSel = selectedFlood?.id===f.id;
+    const m = L.circleMarker([f.lat,f.lng],{
+      radius: isSel?18:12,
+      color: isSel?'#fff':cfg.color,
+      fillColor: cfg.color,
+      fillOpacity: isSel?1:0.75,
+      weight: isSel?3:2,
+    }).addTo(map);
+    m.bindTooltip(`<b>${cfg.icon} ${f.title}</b><br><small>${f.bairro} · ${cfg.label}</small>`,{direction:'top'});
+    m.on('click',()=>selectFlood(f));
+    markers.push(m);
+  });
+}
+
+// ─── STATE HELPERS ────────────────────────────────────────────────────────────
+function getActiveFloods() {
+  const now = Date.now();
+  return floods.filter(f=>f.severity!=='resolved' && (now-f.ts)<EXPIRY_MS);
+}
+
+function purgeExpired() {
+  const before = floods.length;
+  floods = floods.filter(f=> f.severity==='resolved' || (Date.now()-f.ts)<EXPIRY_MS);
+  if (floods.length!==before) { render(); showToast('⏱️ Relatos expirados removidos automaticamente'); }
+}
+
+function timeAgo(ts) {
+  const d = Math.floor((Date.now()-ts)/60000);
+  if (d<1) return 'agora mesmo';
+  if (d<60) return `${d} min atrás`;
+  const h = Math.floor(d/60);
+  return `${h}h atrás`;
+}
+
+function timeLeft(ts) {
+  const rem = Math.max(0, EXPIRY_MS-(Date.now()-ts));
+  const m = Math.floor(rem/60000);
+  const h = Math.floor(m/60);
+  if (h>0) return `expira em ${h}h${m%60>0?` ${m%60}min`:''}`;
+  return `expira em ${m}min`;
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function render() {
+  renderStats();
+  renderFloodList();
+  renderHistoric();
+  if (map) renderMarkers();
+}
+
+function renderStats() {
+  const active = getActiveFloods();
+  const critical = active.filter(f=>f.severity==='critical').length;
+  const moderate = active.filter(f=>f.severity==='moderate').length;
+  const leve     = active.filter(f=>f.severity==='leve').length;
+  const rain = (12 + Math.floor(Math.random()*4)).toFixed(1);
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat-pill">
+      <div class="stat-dot" style="background:#ef4444"></div>
+      <span class="stat-label">Críticos</span>
+      <span class="stat-val">${critical}</span>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-dot" style="background:#f59e0b"></div>
+      <span class="stat-label">Moderados</span>
+      <span class="stat-val">${moderate}</span>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-dot" style="background:#3b82f6"></div>
+      <span class="stat-label">Leves</span>
+      <span class="stat-val">${leve}</span>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-dot" style="background:#10b981"></div>
+      <span class="stat-label">Total ativo</span>
+      <span class="stat-val">${active.length}</span>
+    </div>
+    <div class="rain-indicator">
+      <span class="rain-icon">🌧️</span>
+      <span class="rain-val">${rain} mm/h</span>
+    </div>`;
+}
+
+function renderFloodList() {
+  const active = getActiveFloods().sort((a,b)=>{
+    const order = {critical:0,moderate:1,leve:2};
+    return (order[a.severity]??3)-(order[b.severity]??3);
+  });
+
+  document.getElementById('ativos-label').textContent =
+    `${active.length} ALAGAMENTO${active.length!==1?'S':''} ATIVO${active.length!==1?'S':''}`;
+
+  // detail card
+  const dc = document.getElementById('flood-detail-card');
+  if (selectedFlood && getActiveFloods().find(f=>f.id===selectedFlood.id)) {
+    const f = selectedFlood;
+    const cfg = SEV_CONFIG[f.severity]||SEV_CONFIG.leve;
+    dc.style.display='block';
+    dc.innerHTML=`<div class="detail-card">
+      <div style="margin-bottom:10px"><span class="flood-severity ${cfg.cls}">${cfg.icon} ${cfg.label}</span></div>
+      ${f.photoBase64?`<img class="detail-img" src="${f.photoBase64}" alt="foto"/>` : ''}
+      <div class="detail-title">${f.title}</div>
+      <div class="detail-desc">${f.desc||'Sem descrição adicional.'}</div>
+      <div class="detail-meta-grid">
+        <div class="detail-meta-item"><div class="detail-meta-lbl">BAIRRO</div><div class="detail-meta-val">📍 ${f.bairro}</div></div>
+        <div class="detail-meta-item"><div class="detail-meta-lbl">REPORTADO</div><div class="detail-meta-val">${timeAgo(f.ts)}</div></div>
+        <div class="detail-meta-item"><div class="detail-meta-lbl">POR</div><div class="detail-meta-val">${f.userName||'Anônimo'}</div></div>
+        <div class="detail-meta-item"><div class="detail-meta-lbl">EXPIRA</div><div class="detail-meta-val" style="font-size:11px">${timeLeft(f.ts)}</div></div>
+      </div>
+      <button class="btn-close-detail" onclick="clearSelected()">× Fechar</button>
+    </div>`;
+  } else {
+    dc.style.display='none';
+  }
+
+  if (!active.length) {
+    document.getElementById('flood-list').innerHTML=`
+      <div class="flood-empty">
+        <div class="flood-empty-icon">☀️</div>
+        <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:6px">Nenhum alagamento ativo</div>
+        <div style="font-size:12px">Sorocaba está seca agora. Quando houver chuvas, os relatos aparecerão aqui.</div>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('flood-list').innerHTML = active.map(f=>{
+    const cfg = SEV_CONFIG[f.severity]||SEV_CONFIG.leve;
+    const isSel = selectedFlood?.id===f.id;
+    return `<div class="flood-item ${isSel?'selected':''}" onclick="selectFlood(${JSON.stringify(f).replace(/"/g,'&quot;')})">
+      <div class="flood-item-header">
+        <span class="flood-severity ${cfg.cls}">${cfg.icon} ${cfg.label}</span>
+        <span class="flood-expiry">${timeLeft(f.ts)}</span>
+      </div>
+      <div class="flood-item-title">${f.title}</div>
+      <div class="flood-item-meta">
+        <span>📍 ${f.bairro}</span>
+        <span>·</span>
+        <span>${timeAgo(f.ts)}</span>
+        <span>·</span>
+        <span>${f.userName||'Anônimo'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderHistoric() {
+  const max = Math.max(...HISTORIC_DATA.map(h=>h.ocorrencias));
+  document.getElementById('historic-list').innerHTML = HISTORIC_DATA.map((h,i)=>`
+    <div class="historic-item">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div>
+          <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:2px">${h.local}</div>
+          <div style="font-size:10.5px;color:var(--text-muted)">📍 ${h.bairro}</div>
+        </div>
+        <div style="font-size:18px;font-weight:900;color:var(--accent-light);flex-shrink:0">${h.ocorrencias}</div>
+      </div>
+      <div class="historic-bar-row">
+        <div style="font-size:9.5px;color:var(--text-muted);font-weight:700;min-width:16px">${i+1}º</div>
+        <div class="historic-bar-track">
+          <div class="historic-bar-fill" style="width:${Math.round((h.ocorrencias/max)*100)}%;background:${i===0?'#ef4444':i===1?'#f59e0b':'#3b82f6'}"></div>
+        </div>
+        <div class="historic-count">${h.ocorrencias}x</div>
+      </div>
+    </div>`).join('');
+}
+
+// ─── ACTIONS ──────────────────────────────────────────────────────────────────
+function selectFlood(f) {
+  if (typeof f==='string') f=JSON.parse(f);
+  selectedFlood = f;
+  if (map) map.setView([f.lat,f.lng],16);
+  render();
+}
+
+function clearSelected() {
+  selectedFlood = null;
+  render();
+}
+
+function switchTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.sidebar-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('sidebar-ativos').style.display   = tab==='ativos'   ? 'block' : 'none';
+  document.getElementById('sidebar-historico').style.display = tab==='historico'? 'block' : 'none';
+}
+
+function toggleTheme() {
+  darkMode = !darkMode;
+  document.getElementById('theme-btn').textContent = darkMode?'☀️':'🌙';
+  // app mantém dark — só troca o ícone na demo
+  showToast(darkMode?'🌑 Modo escuro':'☀️ Modo claro');
+}
+
+function toggleUserMenu() {
+  const m = document.getElementById('user-menu');
+  m.style.display = m.style.display==='none'?'block':'none';
+}
+document.addEventListener('click',e=>{
+  if (!e.target.closest('#user-avatar-btn')&&!e.target.closest('#user-menu'))
+    document.getElementById('user-menu').style.display='none';
+});
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function openModal() {
+  addingMode = true;
+  clickedPos = null;
+  selectedSeverity = null;
+  photoBase64 = null;
+  document.getElementById('f-bairro').value='';
+  document.getElementById('f-desc').value='';
+  document.getElementById('f-photo').value='';
+  document.getElementById('photo-preview-wrap').classList.remove('show');
+  document.getElementById('photo-drop').style.display='block';
+  ['leve','moderate','critical'].forEach(s=>{
+    document.getElementById(`sev-${s}`).className='severity-opt';
+  });
+  document.getElementById('adding-banner').style.display='block';
+  document.getElementById('modal-overlay').classList.remove('open');
+  updateLocPicked();
+  validateForm();
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.getElementById('adding-banner').style.display='none';
+  addingMode=false;
+  if (tempMarker){tempMarker.remove();tempMarker=null;}
+  clickedPos=null;
+}
+
+function pickLocation() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  addingMode=true;
+  document.getElementById('adding-banner').style.display='block';
+}
+
+function updateLocPicked() {
+  const btn = document.getElementById('btn-pick-loc');
+  const show = document.getElementById('loc-picked-show');
+  if (clickedPos) {
+    btn.classList.add('hide');
+    show.classList.add('show');
+    document.getElementById('loc-text').textContent=`✅ ${clickedPos.lat.toFixed(5)}, ${clickedPos.lng.toFixed(5)}`;
+  } else {
+    btn.classList.remove('hide');
+    show.classList.remove('show');
+  }
+  validateForm();
+}
+
+function selectSeverity(sev) {
+  selectedSeverity = sev;
+  ['leve','moderate','critical'].forEach(s=>{
+    document.getElementById(`sev-${s}`).className='severity-opt';
+  });
+  document.getElementById(`sev-${sev}`).className=`severity-opt selected-${sev}`;
+  validateForm();
+}
+
+function validateForm() {
+  const ok = clickedPos && selectedSeverity && document.getElementById('f-bairro').value.trim();
+  document.getElementById('btn-submit').disabled=!ok;
+}
+
+function handlePhoto(input) {
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    photoBase64=e.target.result;
+    document.getElementById('photo-preview-img').src=photoBase64;
+    document.getElementById('photo-preview-wrap').classList.add('show');
+    document.getElementById('photo-drop').style.display='none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto() {
+  photoBase64=null;
+  document.getElementById('photo-preview-wrap').classList.remove('show');
+  document.getElementById('photo-drop').style.display='block';
+  document.getElementById('f-photo').value='';
+}
+
+function submitFlood() {
+  if (!clickedPos||!selectedSeverity) return;
+  const bairro = document.getElementById('f-bairro').value.trim();
+  const desc   = document.getElementById('f-desc').value.trim();
+  const cfg    = SEV_CONFIG[selectedSeverity];
+  const newFlood = {
+    id: Date.now().toString(),
+    title: `Alagamento ${cfg.label.toLowerCase()} — ${bairro}`,
+    bairro, severity: selectedSeverity,
+    desc: desc||`Alagamento ${cfg.label.toLowerCase()} reportado em ${bairro}.`,
+    lat: clickedPos.lat, lng: clickedPos.lng,
+    ts: Date.now(),
+    userName: currentUser.name,
+    photoBase64: photoBase64||null,
+  };
+  floods.unshift(newFlood);
+  closeModal();
+  render();
+  showToast(`${cfg.icon} Alagamento reportado! Visível por 2 horas.`);
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function showToast(msg, type='success') {
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=type==='error'?'#b91c1c':'#1d4ed8';
+  t.style.display='block';
+  setTimeout(()=>{t.style.display='none';},3200);
+}
+</script>
+</body>
+</html>
